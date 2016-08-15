@@ -53,19 +53,32 @@ function Group-Pictures {
     }
 }
 
+$Shell = New-Object -ComObject Shell.Application
 
-function GetTakenDate ($Path) {
-    if (!(Test-Path -Path $Path -PathType Leaf)) {
-        throw $"El archivo $Path no existe o no es un fichero"
+function GetTakenDate {
+    # Directory
+    param(
+        # Specifies a path to one or more locations.
+        [Parameter(Mandatory=$true,
+                   Position=0,
+                   ParameterSetName="Path",
+                   ValueFromPipeline=$true,
+                   ValueFromPipelineByPropertyName=$true,
+                   HelpMessage="Path to one or more locations.")]
+        [Alias("PSPath")]
+        [ValidateNotNullOrEmpty()]
+        [string[]]
+        $Path
+    )
+
+    $Path | %{
+        $p = Resolve-Path -Path $Path
+        $d = $Shell.namespace((Split-Path -Path $p -Parent))
+        $f = $d.ParseName((Split-Path -Path $p -Leaf))
+        $s = $d.GetDetailsOf($f, 12) -replace '[\u200E-\u200F]', ''
+        $d = [datetime]::ParseExact($s, 'dd/MM/yyyy HH:mm', $null)
+        [psobject]@{Year = $d.Year; Month = $d.Month; Path = $p}
     }
-    
-    $TakenDate = 12
-    $Shell = New-Object -ComObject Shell.Application
-    $ResolvedPath = Resolve-Path -Path $Path
-    $Directory = $Shell.namespace((Split-Path -Path $ResolvedPath -Parent))
-    $File = $Directory.ParseName((Split-Path -Path $ResolvedPath -Leaf))
-    $DateString = $Directory.GetDetailsOf($File, $TakenDate) -replace '[\u200E-\u200F]', ''
-    [datetime]::ParseExact($DateString, 'dd/MM/yyyy HH:mm', $null)
 }
 
 Group-Pictures -Path "prueba.jpg"
