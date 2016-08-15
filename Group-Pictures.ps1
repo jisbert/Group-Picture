@@ -19,34 +19,46 @@ function Group-Pictures {
 
     [CmdletBinding()]
     param(
-        # Path to directory to scan for files.
+        # Specifies a path to one or more locations.
         [Parameter(Mandatory=$true,
                    Position=0,
                    ParameterSetName="Path",
                    ValueFromPipeline=$true,
                    ValueFromPipelineByPropertyName=$true,
-                   HelpMessage="Path to directory to scan for files.")]
+                   HelpMessage="Path to one or more locations.")]
         [Alias("PSPath")]
-        [ValidateNotNullOrEmpty()]
-        [string[]]
-        $Path,
-        # Specifies a path to one or more locations.
+        [ValidateScript({Test-Path -Path $_ -Type Container})]
+        [string]
+        $InputPath,
+        # Specifies a path to output location.
         [Parameter(Mandatory=$true,
                    Position=1,
-                   ParameterSetName="Output",
-                   HelpMessage="Path to destination directory.")]
-        [Alias("PSDest")]
-        [ValidateNotNullOrEmpty()]
-        [string[]]
-        $Output
+                   ParameterSetName="Path",
+                   ValueFromPipelineByPropertyName=$true,
+                   HelpMessage="Path to output locations.")]
+        [ValidateScript({!(Test-Path -Path $_)})]
+        [string]
+        $OutputPath
     )
     
     begin {
     }
     
     process {
-        $TakenDate = GetTakenDate($Path)
-        $TakenDate
+        $Files = Get-ChildItem $InputPath -Recurse -File -Depth 5 -Include '*.jpg','*.JPG','*.jpeg','*.JPEG','*.png','*.PNG','*.tiff','*.TIFF'
+        $Info = GetTakenDate $Files
+        $Groups = $Info | Group-Object -Property {$_.Year},{$_.Month}
+        $Groups | % {
+            $Year = Join-Path $OutputPath $_.Values[0]
+            $Month = Join-Path $Year $_.Values[1]
+            New-Item -Path $Month -ItemType Directory > $null
+            $Count = 0
+            $_.Group | Sort-Object -Property {$_.Year},{$_.Month} | % {
+                $Count++
+                $Destination = Join-Path $Month ("{0:D6}" -f $Count + $_.Path.Extension)
+                Copy-Item -Path $_.Path -Destination $Destination
+            }
+        }
     }
     
     end {
@@ -56,7 +68,6 @@ function Group-Pictures {
 $Shell = New-Object -ComObject Shell.Application
 
 function GetTakenDate {
-    # Directory
     param(
         # Specifies a path to one or more locations.
         [Parameter(Mandatory=$true,
@@ -67,18 +78,22 @@ function GetTakenDate {
                    HelpMessage="Path to one or more locations.")]
         [Alias("PSPath")]
         [ValidateNotNullOrEmpty()]
-        [string[]]
+        [System.IO.FileInfo[]]
         $Path
     )
 
     $Path | %{
-        $p = Resolve-Path -Path $Path
+        $p = Resolve-Path -Path $_
         $d = $Shell.namespace((Split-Path -Path $p -Parent))
         $f = $d.ParseName((Split-Path -Path $p -Leaf))
-        $s = $d.GetDetailsOf($f, 12) -replace '[\u200E-\u200F]', ''
-        $d = [datetime]::ParseExact($s, 'dd/MM/yyyy HH:mm', $null)
-        [psobject]@{Year = $d.Year; Month = $d.Month; Path = $p}
+        $s = $d.GetDetailsOf($f, 12)
+
+        if (!$s) {
+            $s = $d.GetDetailsOf($f, 4)
+        }
+
+        $n = $s -replace '[\u200E-\u200F]', ''
+        $d = [datetime]::ParseExact($n, 'dd/MM/yyyy H:mm', $null)
+        [psobject]@{Year = $d.Year; Month = '{0:D2}' -f $d.Month; Path = $_}
     }
 }
-
-Group-Pictures -Path "prueba.jpg"
