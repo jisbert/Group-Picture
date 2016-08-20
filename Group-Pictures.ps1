@@ -89,6 +89,10 @@ function GetTakenDate {
         $s = $d.GetDetailsOf($f, 12)
 
         if (!$s) {
+            $s = $d.GetDetailsOf($f, 3)
+        }
+
+        if (!$s) {
             $s = $d.GetDetailsOf($f, 4)
         }
 
