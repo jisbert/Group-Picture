@@ -1,6 +1,6 @@
 ﻿#Requires -Version 5
 
-function Group-Pictures {
+function Group-Picture {
     <#
     .SYNOPSIS
         Short description
